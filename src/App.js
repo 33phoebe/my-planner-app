@@ -8,9 +8,8 @@ import { DndProvider, useDrag, useDrop } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 import ReactMarkdown from 'react-markdown';
 import { startOfWeek, endOfWeek, addDays, format, eachDayOfInterval, isSameDay, parseISO, addWeeks, subWeeks, isBefore, startOfToday, startOfMonth, endOfMonth, eachWeekOfInterval, getYear, setYear, getMonth, addMonths, subMonths, isToday, startOfYear } from 'date-fns';
-
-// Note: remarkGfm and XLSX are now loaded dynamically inside their respective components
-// to avoid build-time resolution issues in this environment.
+import remarkGfm from 'remark-gfm';
+import * as XLSX from 'xlsx';
 
 // --- ICONS (Heroicons & Custom) ---
 const PlusIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>;
@@ -843,7 +842,7 @@ const GoalsView = () => {
                 contents: chatHistory,
                 generationConfig: { responseMimeType: "application/json" }
             };
-            const apiKey = "";
+            const apiKey = process.env.REACT_APP_GEMINI_API_KEY || "";
             const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
             const response = await fetch(apiUrl, {
                 method: 'POST',
@@ -935,6 +934,7 @@ const MealPlanner = ({ currentWeek }) => {
     const { weeklySummaries, updateWeeklySummary } = useContext(DataContext);
     const [isGeneratingList, setIsGeneratingList] = useState(false);
     const [isEditingShoppingList, setIsEditingShoppingList] = useState(true);
+ /*   
     const [gfm, setGfm] = useState(null);
 
     useEffect(() => {
@@ -942,7 +942,8 @@ const MealPlanner = ({ currentWeek }) => {
             setGfm(() => module.default);
         }).catch(err => console.error("Failed to load remark-gfm", err));
     }, []);
-
+*/
+// Remove the useState and useEffect, just use the imported remarkGfm directly
     const weekKey = format(startOfWeek(currentWeek, { weekStartsOn: 1 }), 'yyyy-MM-dd');
     const weeklyData = weeklySummaries[weekKey] || { meals: {}, shoppingList: '' };
     const weekDays = eachDayOfInterval({start: startOfWeek(currentWeek, {weekStartsOn:1}), end: endOfWeek(currentWeek, {weekStartsOn:1})});
@@ -1035,7 +1036,7 @@ const MealPlanner = ({ currentWeek }) => {
                     />
                  ) : (
                     <div className="prose prose-sm p-2 rounded-lg bg-white/50 h-64 overflow-y-auto">
-                        {gfm ? <ReactMarkdown remarkPlugins={[gfm]}>{weeklyData.shoppingList || "Nothing to show."}</ReactMarkdown> : 'Loading Preview...' }
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{weeklyData.shoppingList || "Nothing to show."}</ReactMarkdown>
                     </div>
                  )}
             </div>
@@ -1305,7 +1306,8 @@ function App() {
         let filename = 'tasks.xlsx';
         
         try {
-            const XLSX = await import('https://esm.sh/xlsx');
+            //const XLSX = await import('https://esm.sh/xlsx');
+            // Remove the dynamic import since XLSX is now properly imported at the top
 
             if (activeView === 'calendar') {
                 const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
