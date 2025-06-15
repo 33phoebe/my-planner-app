@@ -1,0 +1,4 @@
+Change Log
+app0608.js -> app0611-1.js: allow monthly drag and drop and gives a visual feedback to the drag with handler
+app0611-1.js -> app0611-2.js: added handler, added a dropzone in the unscheduled task in the task section
+0614-1: added undo + edit can happen in monthly view directly

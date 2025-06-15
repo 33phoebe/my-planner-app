@@ -233,7 +233,7 @@ const DataProvider = ({ children }) => {
             const newTask = {
                 title,
                 estimatedTime,
-                actualTime: estimatedTime || 0, // CHANGE: Default actualTime to estimatedTime
+                actualTime: 0,
                 completed: false,
                 description: '',
                 dueDate: current.toISOString(),
@@ -498,6 +498,7 @@ const HabitManagerModal = ({ seriesId, onClose }) => {
 // Enhanced Task component with original drag preview and direct editing
 const Task = ({ task, compact = false, showDragHandle = true, allowEdit = true }) => {
     const { updateTask } = useContext(DataContext);
+    const { addUndoAction } = useContext(UndoContext);
     const [showDetailModal, setShowDetailModal] = useState(false);
     const [showHabitManager, setShowHabitManager] = useState(false);
 
@@ -509,7 +510,7 @@ const Task = ({ task, compact = false, showDragHandle = true, allowEdit = true }
             title: task.title,
             isHabit: task.isHabit,
             estimatedTime: task.estimatedTime,
-            originalDueDate: task.dueDate
+            originalDueDate: task.dueDate // Store original for undo
         },
         collect: (monitor) => ({
             isDragging: !!monitor.isDragging(),
@@ -535,7 +536,7 @@ const Task = ({ task, compact = false, showDragHandle = true, allowEdit = true }
                     ref={drag}
                     onClick={handleTaskClick}
                     className={`group relative cursor-pointer transition-all duration-200 ${
-                        isDragging ? 'opacity-50 scale-95 rotate-2 translate-x-1' : 'opacity-100'
+                        isDragging ? 'opacity-50 scale-95 rotate-2' : 'opacity-100'
                     }`}
                 >
                     <div className={`text-[10px] px-1.5 py-0.5 rounded truncate transition-all hover:shadow-sm ${
@@ -565,7 +566,7 @@ const Task = ({ task, compact = false, showDragHandle = true, allowEdit = true }
                 } ${
                     task.isHabit ? 'border-violet-400' : 'border-orange-400'
                 } ${
-                    isDragging ? 'opacity-50 scale-105 shadow-lg rotate-1 translate-x-2' : 'opacity-100'
+                    isDragging ? 'opacity-50 scale-105 shadow-lg' : 'opacity-100'
                 }`}
             >
                 <div className="flex items-start justify-between">
@@ -624,6 +625,51 @@ const Task = ({ task, compact = false, showDragHandle = true, allowEdit = true }
     );
 };
 
+// Update your DayColumn component to use the new Task component properly
+
+//section without undo for daycolumn
+/*
+const DayColumn = ({ day, tasks }) => {
+    const { updateTask } = useContext(DataContext);
+
+    const regularTasks = tasks.filter(t => !t.isHabit);
+    const habits = tasks.filter(t => t.isHabit);
+
+    const [{ isOver }, drop] = useDrop(() => ({
+        accept: ItemTypes.TASK,
+        drop: (item) => {
+            updateTask(item.id, { dueDate: day });
+        },
+        collect: (monitor) => ({
+            isOver: !!monitor.isOver(),
+        }),
+    }));
+    
+    return (
+        <div ref={drop} className={`flex-1 p-3 bg-white rounded-xl min-h-[400px] transition-colors ${isOver ? 'bg-teal-100' : ''}`}>
+            <div className="text-center mb-4">
+                <h3 className="font-semibold text-gray-500">{format(day, 'EEE')}</h3>
+                <p className={`font-bold text-2xl ${isToday(day) ? 'text-teal-600' : 'text-gray-800'}`}>{format(day, 'd')}</p>
+            </div>
+            <div className="space-y-2">
+                 {regularTasks.map(task => <Task key={task.id} task={task} compact={false}/>)}
+            </div>
+
+            {habits.length > 0 && (
+                <>
+                    <div className="my-4 relative text-center">
+                        <hr className="border-dashed border-gray-300"/>
+                        <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-white px-2 text-xs text-gray-500 font-medium tracking-wider uppercase">Habits</span>
+                    </div>
+                    <div className="space-y-2">
+                         {habits.map(habit => <Task key={habit.id} task={habit} compact={false}/>)}
+                    </div>
+                </>
+            )}
+        </div>
+    );
+};
+*/
 
 // Enhanced DayColumn with undo support
 const DayColumn = ({ day, tasks }) => {
@@ -745,13 +791,11 @@ const CreateTaskModal = ({ onClose, date, initialData }) => {
 
     const handleSubmit = (e) => {
         e.preventDefault();
-        // CHANGE: Parse estimatedTime to ensure it's a number
-        const parsedEstimatedTime = parseInt(estimatedTime, 10) || 0;
         const taskData = {
             title,
             description,
-            estimatedTime: parsedEstimatedTime,
-            actualTime: parsedEstimatedTime, // CHANGE: Default actualTime to estimatedTime
+            estimatedTime,
+            actualTime: 0,
             completed: false,
             dueDate: dueDate ? parseISO(dueDate) : null,
             isHabit,
@@ -815,31 +859,25 @@ const CreateTaskModal = ({ onClose, date, initialData }) => {
     );
 };
 
-const CollapsibleSection = ({ title, icon, children, defaultOpen = false }) => {
-    const [isOpen, setIsOpen] = useState(defaultOpen);
+const CollapsibleSection = ({ title, icon, children }) => {
+    const [isOpen, setIsOpen] = useState(true);
 
     return (
-        <div className="space-y-3">
+        <div>
             <button
                 onClick={() => setIsOpen(!isOpen)}
-                className="w-full flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors group"
+                className="w-full flex items-center justify-between font-semibold text-lg text-gray-700 mb-3 focus:outline-none"
             >
-                <span className="flex items-center font-semibold text-lg text-gray-700">
-                    {icon}
-                    {title}
-                </span>
-                <div className={`transform transition-transform duration-200 text-gray-500 group-hover:text-gray-700 ${isOpen ? 'rotate-90' : ''}`}>
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                    </svg>
-                </div>
+                <span className="flex items-center">{icon}{title}</span>
+                <span className={`transform transition-transform duration-200 ${isOpen ? 'rotate-90' : ''}`}>&gt;</span>
             </button>
-            {isOpen && <div>{children}</div>}
+            {isOpen && <div className="space-y-2">{children}</div>}
         </div>
-    );
-};
+    )
+}
 
-// Fixed TaskList with proper habit filtering and collapsible sections
+// Enhanced TaskList with drag & drop zones
+// Enhanced TaskList with undo support
 const TaskList = () => {
     const { tasks, updateTask } = useContext(DataContext);
     const { addUndoAction } = useContext(UndoContext);
@@ -852,19 +890,14 @@ const TaskList = () => {
             return parseISO(b.dueDate) - parseISO(a.dueDate);
         });
         
-    // Scheduled tasks should NOT include habits
     const scheduledTasks = tasks
-        .filter(t => !t.completed && t.dueDate && !t.isHabit)
+        .filter(t => !t.completed && t.dueDate)
         .sort((a,b) => new Date(a.dueDate) - new Date(b.dueDate));
         
-    // Only show non-habit tasks in parking lot
-    const parkingLotTasks = tasks.filter(t => !t.completed && !t.dueDate && !t.isHabit);
-    
-    // Separate section for habits (both scheduled and unscheduled)
-    const allHabits = tasks.filter(t => t.isHabit && !t.completed);
+    const parkingLotTasks = tasks.filter(t => !t.completed && !t.dueDate);
 
     // Droppable zone component with undo support
-    const DroppableZone = ({ onDrop, children, isEmpty, emptyMessage, className = "", accentColor = "teal" }) => {
+    const DroppableZone = ({ onDrop, children, isEmpty, emptyMessage, className = "" }) => {
         const [{ isOver }, drop] = useDrop(() => ({
             accept: ItemTypes.TASK,
             drop: (item) => {
@@ -876,160 +909,80 @@ const TaskList = () => {
             }),
         }));
 
-        const colorClasses = {
-            teal: 'bg-teal-50 border-teal-300 text-teal-600',
-            violet: 'bg-violet-50 border-violet-300 text-violet-600',
-            green: 'bg-green-50 border-green-300 text-green-600',
-            orange: 'bg-orange-50 border-orange-300 text-orange-600'
-        };
-
         return (
             <div 
                 ref={drop}
-                className={`min-h-[80px] transition-all duration-200 rounded-lg ${
-                    isOver ? `border-2 border-dashed ${colorClasses[accentColor]}` : 'border border-gray-200'
+                className={`min-h-[100px] transition-all duration-200 ${
+                    isOver ? 'bg-teal-50 border-2 border-dashed border-teal-300 rounded-lg' : ''
                 } ${className}`}
             >
                 {isEmpty && isOver ? (
-                    <div className={`flex items-center justify-center h-24 font-medium ${colorClasses[accentColor].split(' ')[2]}`}>
+                    <div className="flex items-center justify-center h-24 text-teal-600 font-medium">
                         Drop task here
                     </div>
                 ) : isEmpty ? (
-                    <div className="flex items-center justify-center h-24">
-                        <p className="text-sm text-gray-400">{emptyMessage}</p>
-                    </div>
+                    <p className="text-sm text-gray-400 text-center py-8">{emptyMessage}</p>
                 ) : (
-                    <div className="p-4">
-                        {children}
-                    </div>
+                    children
                 )}
             </div>
         );
     };
 
-    const StatCard = ({ title, count, color = "gray" }) => {
-        const colors = {
-            gray: "bg-gray-100 text-gray-600",
-            blue: "bg-blue-100 text-blue-600", 
-            green: "bg-green-100 text-green-600",
-            violet: "bg-violet-100 text-violet-600"
-        };
-        
-        return (
-            <div className={`px-4 py-2 rounded-lg ${colors[color]}`}>
-                <div className="text-2xl font-bold">{count}</div>
-                <div className="text-xs font-medium uppercase tracking-wide">{title}</div>
-            </div>
-        );
-    };
-
     return (
-        <div className="p-4 sm:p-6 bg-white rounded-2xl shadow-sm max-w-6xl mx-auto space-y-6">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                <h2 className="text-2xl font-bold text-gray-800">Task Dashboard</h2>
-                <div className="flex gap-3">
-                    <StatCard title="Scheduled" count={scheduledTasks.length} color="blue" />
-                    <StatCard title="Unscheduled" count={parkingLotTasks.length} color="gray" />
-                    <StatCard title="Habits" count={allHabits.length} color="violet" />
-                    <StatCard title="Completed" count={completedTasks.length} color="green" />
-                </div>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Scheduled Tasks */}
-                <CollapsibleSection 
-                    title="Scheduled Tasks" 
-                    icon={<div className="w-3 h-3 bg-blue-500 rounded-full mr-2"></div>}
-                    defaultOpen={false}
-                >
-                    <DroppableZone
-                        onDrop={(item, originalDate) => {
-                            const newDate = item.dueDate ? parseISO(item.dueDate) : new Date();
-                            addUndoAction({
-                                description: `Moved "${item.title}" to scheduled tasks`,
-                                undo: () => updateTask(item.id, { dueDate: originalDate ? parseISO(originalDate) : null })
-                            });
-                            updateTask(item.id, { dueDate: newDate });
-                        }}
-                        isEmpty={scheduledTasks.length === 0}
-                        emptyMessage="No scheduled tasks yet"
-                        accentColor="teal"
-                        className="bg-blue-50"
-                    >
-                        <div className="space-y-2">
-                            {scheduledTasks.map(task => <Task key={task.id} task={task}/>)}
-                        </div>
-                    </DroppableZone>
-                </CollapsibleSection>
-
-                {/* Unscheduled Tasks */}
-                <CollapsibleSection 
-                    title="Unscheduled Tasks" 
-                    icon={<ParkingLotIcon/>}
-                    defaultOpen={false}
-                >
-                    <DroppableZone
-                        onDrop={(item, originalDate) => {
-                            addUndoAction({
-                                description: `Moved "${item.title}" to unscheduled`,
-                                undo: () => updateTask(item.id, { dueDate: originalDate ? parseISO(originalDate) : null })
-                            });
-                            updateTask(item.id, { dueDate: null });
-                        }}
-                        isEmpty={parkingLotTasks.length === 0}
-                        emptyMessage="No unscheduled tasks"
-                        accentColor="orange"
-                        className="bg-gray-50"
-                    >
-                        <div className="space-y-2">
-                            {parkingLotTasks.map(task => <Task key={task.id} task={task}/>)}
-                        </div>
-                    </DroppableZone>
-                </CollapsibleSection>
-            </div>
-
-            {/* Habits Section */}
-            {allHabits.length > 0 && (
-                <CollapsibleSection 
-                    title="All Habits" 
-                    icon={<div className="w-3 h-3 bg-violet-500 rounded-full mr-2"></div>}
-                    defaultOpen={false}
-                >
-                    <DroppableZone
-                        isEmpty={false}
-                        accentColor="violet"
-                        className="bg-violet-50"
-                    >
-                        <div className="space-y-2">
-                            {allHabits.map(habit => <Task key={habit.id} task={habit}/>)}
-                        </div>
-                    </DroppableZone>
-                </CollapsibleSection>
-            )}
-
-            {/* Completed Tasks */}
-            <CollapsibleSection 
-                title="Completed Tasks" 
-                icon={<div className="w-3 h-3 bg-green-500 rounded-full mr-2"></div>}
-                defaultOpen={false}
-            >
+        <div className="p-4 sm:p-6 bg-white rounded-2xl shadow-sm max-w-4xl mx-auto space-y-8">
+            <h2 className="text-2xl font-bold text-gray-800">All Tasks</h2>
+            
+            <CollapsibleSection title="Scheduled Tasks">
                 <DroppableZone
-                    onDrop={() => {
+                    onDrop={(item, originalDate) => {
+                        const newDate = item.dueDate ? parseISO(item.dueDate) : new Date();
+                        addUndoAction({
+                            description: `Moved "${item.title}" to scheduled tasks`,
+                            undo: () => updateTask(item.id, { dueDate: originalDate ? parseISO(originalDate) : null })
+                        });
+                        updateTask(item.id, { dueDate: newDate });
+                    }}
+                    isEmpty={scheduledTasks.length === 0}
+                    emptyMessage="No scheduled tasks."
+                >
+                    {scheduledTasks.map(task => <Task key={task.id} task={task}/>)}
+                </DroppableZone>
+            </CollapsibleSection>
+            
+            <CollapsibleSection title="Parking Lot" icon={<ParkingLotIcon/>}>
+                <p className="text-sm text-gray-500 -mt-2 mb-4">Tasks without a due date.</p>
+                <DroppableZone
+                    onDrop={(item, originalDate) => {
+                        addUndoAction({
+                            description: `Moved "${item.title}" to parking lot`,
+                            undo: () => updateTask(item.id, { dueDate: originalDate ? parseISO(originalDate) : null })
+                        });
+                        updateTask(item.id, { dueDate: null });
+                    }}
+                    isEmpty={parkingLotTasks.length === 0}
+                    emptyMessage="Your parking lot is empty!"
+                    className="bg-gray-50 rounded-lg p-4"
+                >
+                    {parkingLotTasks.map(task => <Task key={task.id} task={task}/>)}
+                </DroppableZone>
+            </CollapsibleSection>
+             
+            <CollapsibleSection title="Completed Tasks">
+                <DroppableZone
+                    onDrop={(item, originalDate) => {
                         // Don't allow dropping into completed
                     }}
                     isEmpty={completedTasks.length === 0}
-                    emptyMessage="No completed tasks yet"
-                    accentColor="green"
-                    className="bg-green-50"
+                    emptyMessage="No tasks completed yet."
                 >
-                    <div className="space-y-2">
-                        {completedTasks.map(task => <Task key={task.id} task={task} showDragHandle={false}/>)}
-                    </div>
+                    {completedTasks.map(task => <Task key={task.id} task={task} showDragHandle={false}/>)}
                 </DroppableZone>
             </CollapsibleSection>
         </div>
     );
 };
+
 
 const GoalBreakdownModal = ({ goalText, tasks, onClose, onAddTasks }) => {
     const [selectedTasks, setSelectedTasks] = useState([]);
@@ -1038,14 +991,6 @@ const GoalBreakdownModal = ({ goalText, tasks, onClose, onAddTasks }) => {
         setSelectedTasks(prev => 
             prev.includes(taskText) ? prev.filter(t => t !== taskText) : [...prev, taskText]
         );
-    };
-
-    const handleSelectAll = () => {
-        if (selectedTasks.length === tasks.length) {
-            setSelectedTasks([]);
-        } else {
-            setSelectedTasks([...tasks]);
-        }
     };
 
     const handleAdd = () => {
@@ -1058,26 +1003,10 @@ const GoalBreakdownModal = ({ goalText, tasks, onClose, onAddTasks }) => {
             <div className="bg-white p-6 rounded-2xl shadow-xl w-full max-w-lg">
                 <h2 className="text-2xl font-bold mb-2 text-gray-800">Suggested Tasks</h2>
                 <p className="text-gray-600 mb-4">For your goal: "{goalText}"</p>
-                
-                <div className="flex justify-between items-center mb-3">
-                    <span className="text-sm text-gray-600">{selectedTasks.length} of {tasks.length} selected</span>
-                    <button 
-                        onClick={handleSelectAll}
-                        className="text-sm text-teal-600 hover:text-teal-700 font-medium"
-                    >
-                        {selectedTasks.length === tasks.length ? 'Deselect All' : 'Select All'}
-                    </button>
-                </div>
-                
                 <div className="space-y-2 max-h-60 overflow-y-auto pr-2">
                     {tasks.map((task, index) => (
-                        <label key={index} className="flex items-center p-3 bg-gray-50 rounded-lg border border-gray-200 cursor-pointer hover:bg-gray-100 transition-colors">
-                            <input 
-                                type="checkbox" 
-                                checked={selectedTasks.includes(task)}
-                                onChange={() => handleToggleTask(task)} 
-                                className="h-5 w-5 rounded text-teal-600 border-gray-300 focus:ring-teal-500" 
-                            />
+                        <label key={index} className="flex items-center p-3 bg-gray-50 rounded-lg border border-gray-200 cursor-pointer">
+                            <input type="checkbox" onChange={() => handleToggleTask(task)} className="h-5 w-5 rounded text-teal-600 border-gray-300 focus:ring-teal-500" />
                             <span className="ml-3 font-medium text-gray-700">{task}</span>
                         </label>
                     ))}
@@ -1182,23 +1111,17 @@ const WeeklyNotes = ({ currentWeek }) => {
     const { weeklySummaries, updateWeeklySummary } = useContext(DataContext);
 
     const weekKey = format(startOfWeek(currentWeek, { weekStartsOn: 1 }), 'yyyy-MM-dd');
-    
-    // CRITICAL FIX: Only handle notes - NO macro targets at all
-    const weeklyData = weeklySummaries[weekKey] || {};
+    const weeklyData = weeklySummaries[weekKey] || { notes: '' };
     
     const handleChange = (value) => {
-        // ONLY update notes - don't touch macroTargets
-        const updateData = { ...weeklyData };
-        delete updateData.macroTargets; // Ensure we don't interfere
-        updateData.notes = value;
-        updateWeeklySummary(weekKey, updateData);
+        updateWeeklySummary(weekKey, { ...weeklyData, notes: value });
     }
 
     return (
          <div className="p-4 sm:p-6 bg-yellow-50 rounded-2xl shadow-sm">
             <h2 className="text-xl font-bold mb-4 text-yellow-900">Weekly Notes</h2>
              <textarea 
-                value={weeklyData.notes || ''} 
+                value={weeklyData.notes} 
                 onChange={(e) => handleChange(e.target.value)}
                 placeholder="Thoughts, reflections, and important notes for the week..."
                 className="w-full p-2 border border-yellow-200 bg-white/50 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 h-48"
@@ -1264,463 +1187,50 @@ const UndoToast = ({ onUndo, onDismiss }) => {
     );
 };
 
-const CORRECT_DEFAULT_MACROS = { calories: 1583, protein: 120, carbs: 139, fat: 62 };
-
-// Global baseline that persists across app sessions
-let globalMacroBaseline = { ...CORRECT_DEFAULT_MACROS };
-
-// Try to load from localStorage
-try {
-    const stored = localStorage.getItem('globalMacroBaseline');
-    if (stored) {
-        globalMacroBaseline = { ...CORRECT_DEFAULT_MACROS, ...JSON.parse(stored) };
-    }
-} catch (e) {
-    // Ignore localStorage errors
-}
-
-const updateGlobalBaseline = (newTargets) => {
-    globalMacroBaseline = { ...newTargets };
-    try {
-        localStorage.setItem('globalMacroBaseline', JSON.stringify(newTargets));
-    } catch (e) {
-       // Ignore localStorage errors
-    }
-};
-
 
 const MealPlanner = ({ currentWeek }) => {
     const { weeklySummaries, updateWeeklySummary } = useContext(DataContext);
     const [isGeneratingList, setIsGeneratingList] = useState(false);
-    const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
-    const [isOptimizingPlan, setIsOptimizingPlan] = useState(false);
-    const [isAnalyzingMacros, setIsAnalyzingMacros] = useState(false);
-    const [macroAnalysis, setMacroAnalysis] = useState('');
-    const [dailyMacros, setDailyMacros] = useState({});
-    const [isEditingShoppingList, setIsEditingShoppingList] = useState(false);
-    
-    // State for the resizable layout
-    const [layoutWidth, setLayoutWidth] = useState(65); // Default width set to 65%
-    const [isResizing, setIsResizing] = useState(false);
-    const containerRef = React.useRef(null);
-
-    const [localWeeklyData, setLocalWeeklyData] = useState(null);
-    const macroOrder = ['calories', 'protein', 'carbs', 'fat'];
-    const updateTimers = React.useRef({});
-
-    const weekKey = format(startOfWeek(currentWeek, { weekStartsOn: 1 }), 'yyyy-MM-dd');
-    
-    const getPreviousWeekTargets = useCallback(() => {
-        const previousWeek = subWeeks(currentWeek, 1);
-        const previousWeekKey = format(startOfWeek(previousWeek, { weekStartsOn: 1 }), 'yyyy-MM-dd');
-        const previousData = weeklySummaries[previousWeekKey];
-        
-        if (previousData?.macroTargets) {
-            return { ...previousData.macroTargets };
-        }
-        return { ...globalMacroBaseline };
-    }, [currentWeek, weeklySummaries]);
-
-    const serverWeeklyData = React.useMemo(() => {
-        const stored = weeklySummaries[weekKey];
-        if (!stored) {
-            return {
-                meals: {},
-                shoppingList: '',
-                foodStock: '',
-                macroAnalysis: '',
-                macroTargets: getPreviousWeekTargets()
-            };
-        }
-        return {
-            meals: stored.meals || {},
-            shoppingList: stored.shoppingList || '',
-            foodStock: stored.foodStock || '',
-            macroAnalysis: stored.macroAnalysis || '',
-            macroTargets: stored.macroTargets || { ...globalMacroBaseline }
-        };
-    }, [weeklySummaries, weekKey, getPreviousWeekTargets]);
-
-    const weeklyData = localWeeklyData || serverWeeklyData;
-
-    React.useEffect(() => {
-        setLocalWeeklyData(null);
-        setDailyMacros({});
-        setMacroAnalysis(serverWeeklyData.macroAnalysis || '');
-        setIsEditingShoppingList(false);
-    }, [weekKey, serverWeeklyData.macroAnalysis]);
-
-    // Drag-to-resize logic
-    const handleMouseDown = (e) => {
-        e.preventDefault();
-        setIsResizing(true);
-    };
-
-    const handleMouseUp = () => {
-        setIsResizing(false);
-    };
-
-    const handleMouseMove = useCallback((e) => {
-        if (isResizing && containerRef.current) {
-            const containerRect = containerRef.current.getBoundingClientRect();
-            const newWidth = ((e.clientX - containerRect.left) / containerRect.width) * 100;
-            // Clamp the width between 30% and 70%
-            const clampedWidth = Math.max(30, Math.min(70, newWidth));
-            setLayoutWidth(clampedWidth);
-        }
-    }, [isResizing]);
+    const [isEditingShoppingList, setIsEditingShoppingList] = useState(true);
+ /*   
+    const [gfm, setGfm] = useState(null);
 
     useEffect(() => {
-        if (isResizing) {
-            window.addEventListener('mousemove', handleMouseMove);
-            window.addEventListener('mouseup', handleMouseUp);
-        } else {
-            window.removeEventListener('mousemove', handleMouseMove);
-            window.removeEventListener('mouseup', handleMouseUp);
-        }
-
-        return () => {
-            window.removeEventListener('mousemove', handleMouseMove);
-            window.removeEventListener('mouseup', handleMouseUp);
-        };
-    }, [isResizing, handleMouseMove]);
-    
-    const weekDays = eachDayOfInterval({
-        start: startOfWeek(currentWeek, {weekStartsOn:1}), 
-        end: endOfWeek(currentWeek, {weekStartsOn:1})
-    });
-    
-    const mealTypes = ['Lunch', 'Dinner', 'Snacks', 'Notes'];
-
-    const debouncedUpdate = useCallback((updateFunction, delay = 1000) => {
-        if (updateTimers.current.update) {
-            clearTimeout(updateTimers.current.update);
-        }
-        updateTimers.current.update = setTimeout(() => {
-            updateFunction();
-        }, delay);
+        import('https://esm.sh/remark-gfm').then(module => {
+            setGfm(() => module.default);
+        }).catch(err => console.error("Failed to load remark-gfm", err));
     }, []);
-
-    const updateServerState = useCallback((newData) => {
-        debouncedUpdate(() => {
-            updateWeeklySummary(weekKey, newData);
-        });
-    }, [weekKey, updateWeeklySummary, debouncedUpdate]);
-
-    const handleStateChange = (field, value) => {
-        const newData = { ...weeklyData, [field]: value };
-        setLocalWeeklyData(newData);
-        updateServerState(newData);
-    };
+*/
+// Remove the useState and useEffect, just use the imported remarkGfm directly
+    const weekKey = format(startOfWeek(currentWeek, { weekStartsOn: 1 }), 'yyyy-MM-dd');
+    const weeklyData = weeklySummaries[weekKey] || { meals: {}, shoppingList: '' };
+    const weekDays = eachDayOfInterval({start: startOfWeek(currentWeek, {weekStartsOn:1}), end: endOfWeek(currentWeek, {weekStartsOn:1})});
+    const mealTypes = ['Breakfast', 'Lunch', 'Dinner', 'Snacks'];
 
     const handleMealChange = (day, meal, value) => {
         const dayKey = format(day, 'yyyy-MM-dd');
         const updatedMeals = {
             ...weeklyData.meals,
             [dayKey]: {
-                ...(weeklyData.meals?.[dayKey] || {}),
+                ...weeklyData.meals?.[dayKey],
                 [meal]: value
             }
         };
-        handleStateChange('meals', updatedMeals);
-    };
-    
-    const handleMacroTargetChange = (macro, value) => {
-        const updatedTargets = {
-            ...(weeklyData.macroTargets || {}),
-            [macro]: parseInt(value) || 0
-        };
-        updateGlobalBaseline(updatedTargets);
-        handleStateChange('macroTargets', updatedTargets);
+        updateWeeklySummary(weekKey, { ...weeklyData, meals: updatedMeals });
     };
 
-    const copyFromPreviousWeek = useCallback(async () => {
-        const previousWeekStartDate = startOfWeek(subWeeks(currentWeek, 1), { weekStartsOn: 1 });
-        const previousWeekKey = format(previousWeekStartDate, 'yyyy-MM-dd');
-        const previousData = weeklySummaries[previousWeekKey];
-
-        if (previousData?.meals && Object.keys(previousData.meals).length > 0) {
-            const newMeals = {};
-            const currentWeekDays = eachDayOfInterval({
-                start: startOfWeek(currentWeek, { weekStartsOn: 1 }),
-                end: endOfWeek(currentWeek, { weekStartsOn: 1 })
-            });
-            
-            const previousWeekDays = eachDayOfInterval({
-                start: previousWeekStartDate,
-                end: endOfWeek(previousWeekStartDate, { weekStartsOn: 1 })
-            });
-
-            currentWeekDays.forEach((currentDay, index) => {
-                const previousDay = previousWeekDays[index];
-                const previousDayKey = format(previousDay, 'yyyy-MM-dd');
-                const currentDayKey = format(currentDay, 'yyyy-MM-dd');
-
-                if (previousData.meals[previousDayKey]) {
-                    newMeals[currentDayKey] = previousData.meals[previousDayKey];
-                }
-            });
-
-            const newData = {
-                ...weeklyData,
-                meals: newMeals,
-                shoppingList: '',
-                macroAnalysis: ''
-            };
-            
-            setLocalWeeklyData(newData);
-            await updateWeeklySummary(weekKey, newData);
-            setDailyMacros({});
-            setMacroAnalysis('');
-            alert('Last week\'s meal plan has been copied successfully!');
-        } else {
-            alert('No meal plan found for the previous week.');
-        }
-    }, [currentWeek, weeklySummaries, weeklyData, updateWeeklySummary, weekKey]);
-
-    const resetMealPlan = useCallback(async () => {
-        const userConfirmed = window.confirm('Are you sure you want to reset the entire meal plan for this week?');
-
-        if (userConfirmed) {
-            const resetData = {
-                ...weeklyData,
-                meals: {},
-                shoppingList: '',
-                macroAnalysis: ''
-            };
-            
-            setLocalWeeklyData(resetData);
-            await updateWeeklySummary(weekKey, resetData);
-            setDailyMacros({});
-            setMacroAnalysis('');
-        }
-    }, [weeklyData, updateWeeklySummary, weekKey]);
-    
-    const generateOptimizedMealPlan = useCallback(async () => {
-        const previousWeek = subWeeks(currentWeek, 1);
-        const previousWeekKey = format(startOfWeek(previousWeek, { weekStartsOn: 1 }), 'yyyy-MM-dd');
-        const previousData = weeklySummaries[previousWeekKey];
-
-        if (!previousData?.meals || Object.keys(previousData.meals).length === 0) {
-            alert('No baseline meal plan found from previous week. Please copy last week first or create a meal plan manually.');
-            return;
-        }
-
-        if (!window.confirm('Optimize last week\'s meal plan with minor healthy improvements? This will replace your current meal plan.')) {
-            return;
-        }
-
-        setIsOptimizingPlan(true);
-
-        try {
-            const targets = weeklyData.macroTargets;
-            const stockText = weeklyData.foodStock || 'No specific unused items from last week';
-
-            const previousMealText = Object.entries(previousData.meals).map(([day, meals]) => {
-                const date = format(parseISO(day), 'EEEE');
-                const mealEntries = Object.entries(meals)
-                    .filter(([mealType]) => mealType !== 'Notes')
-                    .map(([mealType, meal]) => meal ? `  ${mealType}: ${meal}` : null)
-                    .filter(Boolean)
-                    .join('\n');
-                return `${date}:\n${mealEntries}`;
-            }).join('\n\n');
-            
-            const prompt = `Optimize the following meal plan with MINIMAL changes to better meet the macro targets. Keep the plan 80% identical. Suggest only small, healthy swaps like changing cooking methods (e.g., baked instead of fried), adjusting portion sizes, or adding more vegetables. Suggest 1-2 new simple, healthy ingredients if necessary, but prioritize using the existing meal structure. Keep preparation simple.
-
-**Daily Macro Targets:**
-~${targets.calories} calories, ~${targets.protein}g protein, ~${targets.carbs}g carbs, ~${targets.fat}g fat
-
-**Unused Items from Last Week (try to avoid suggesting these):**
-${stockText}
-
-**Baseline Meal Plan to Optimize:**
-${previousMealText}
-
-**Output Format:**
-Return a single JSON object. The keys must be the lowercase day of the week (e.g., "monday"). Each value must be an object with keys "Lunch", "Dinner", and "Snacks".`;
-
-            const chatHistory = [{ role: "user", parts: [{ text: prompt }] }];
-            const payload = {
-                contents: chatHistory,
-                generationConfig: { responseMimeType: "application/json" }
-            };
-            const apiKey = process.env.REACT_APP_GEMINI_API_KEY || "";
-            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
-
-            const response = await fetch(apiUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-
-            if (!response.ok) throw new Error(`API Error: ${response.status}`);
-            const result = await response.json();
-
-            if (result.candidates && result.candidates[0]?.content?.parts[0]?.text) {
-                const optimizedPlan = JSON.parse(result.candidates[0].content.parts[0].text);
-                const formattedMeals = {};
-                weekDays.forEach(day => {
-                    const dayKey = format(day, 'yyyy-MM-dd');
-                    const dayName = format(day, 'EEEE').toLowerCase();
-                    if (optimizedPlan[dayName]) {
-                        formattedMeals[dayKey] = optimizedPlan[dayName];
-                    }
-                });
-
-                const newData = { ...weeklyData, meals: formattedMeals, shoppingList: '', macroAnalysis: '' };
-                setLocalWeeklyData(newData);
-                await updateWeeklySummary(weekKey, newData);
-                setDailyMacros({});
-                setMacroAnalysis('');
-                alert('Meal plan optimized! Click "Analyze" to see macro breakdown.');
-            } else {
-                console.error("Optimize Meal Plan Error: Invalid API response", result);
-                throw new Error("Invalid response structure from API.");
-            }
-        } catch (error) {
-            console.error('Error optimizing meal plan:', error);
-            alert(`Error optimizing meal plan: ${error.message}`);
-        } finally {
-            setIsOptimizingPlan(false);
-        }
-    }, [currentWeek, weeklyData, weekDays, updateWeeklySummary, weeklySummaries]);
-
-
-    const generateSurpriseMealPlan = useCallback(async () => {
-        const previousWeek = subWeeks(currentWeek, 1);
-        const previousWeekKey = format(startOfWeek(previousWeek, { weekStartsOn: 1 }), 'yyyy-MM-dd');
-        const previousData = weeklySummaries[previousWeekKey];
-        
-        if (!previousData?.meals || Object.keys(previousData.meals).length === 0) {
-            alert('No baseline meal plan found from the previous week. Please create a plan for last week first to provide a style reference.');
-            return;
-        }
-
-        if (!window.confirm('Generate a new creative meal plan? This will replace your current plan.')) {
-            return;
-        }
-
-        setIsGeneratingPlan(true);
-
-        try {
-            const targets = weeklyData.macroTargets;
-            const stockText = weeklyData.foodStock || 'No specific food stock listed.';
-            
-            const previousMealText = Object.entries(previousData.meals).map(([day, meals]) => {
-                const date = format(parseISO(day), 'EEEE');
-                const mealEntries = Object.entries(meals)
-                    .filter(([mealType]) => mealType !== 'Notes')
-                    .map(([mealType, meal]) => meal ? `  ${mealType}: ${meal}` : null)
-                    .filter(Boolean)
-                    .join('\n');
-                return `${date}:\n${mealEntries}`;
-            }).join('\n\n');
-            
-            const prompt = `You are a creative and health-conscious chef. Your task is to generate a new 7-day meal plan.
-
-**Style Guide:** Use the following previous meal plan as a style reference. The new plan should be about 70% similar in terms of complexity, cuisine style, and types of dishes, but introduce 30% creative, new, and exciting meal ideas using great ingredients.
-
-**Constraints:**
-1.  **Macro Targets:** Aim for this daily average: ~${targets.calories} calories, ~${targets.protein}g protein, ~${targets.carbs}g carbs, ~${targets.fat}g fat.
-2.  **Food Stock:** Prioritize using these items from the user's food stock: ${stockText}. Make sure to include them in the new plan.
-
-**Previous Meal Plan (for style reference):**
-${previousMealText}
-
-**Output Format:**
-Return a single JSON object. The keys must be the lowercase day of the week (e.g., "monday", "tuesday"). Each value must be an object with keys "Lunch", "Dinner", and "Snacks". Ensure every meal and snack has a value.`;
-
-            const chatHistory = [{ role: "user", parts: [{ text: prompt }] }];
-            const payload = { 
-                contents: chatHistory,
-                generationConfig: { responseMimeType: "application/json" }
-            };
-            
-            const apiKey = process.env.REACT_APP_GEMINI_API_KEY || "";
-            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
-            
-            const response = await fetch(apiUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-            
-            if (!response.ok) {
-                const errorBody = await response.text();
-                throw new Error(`API request failed with status ${response.status}: ${errorBody}`);
-            }
-            
-            const result = await response.json();
-            
-            if (result.candidates && result.candidates[0]?.content?.parts[0]?.text) {
-                const surprisePlan = JSON.parse(result.candidates[0].content.parts[0].text);
-                
-                const formattedMeals = {};
-                weekDays.forEach(day => {
-                    const dayKey = format(day, 'yyyy-MM-dd');
-                    const dayName = format(day, 'EEEE').toLowerCase();
-                    
-                    if (surprisePlan[dayName]) {
-                        formattedMeals[dayKey] = surprisePlan[dayName];
-                    }
-                });
-                
-                const newData = {
-                    ...weeklyData,
-                    meals: formattedMeals,
-                    shoppingList: '', 
-                    macroAnalysis: ''
-                };
-                
-                setLocalWeeklyData(newData);
-                await updateWeeklySummary(weekKey, newData);
-                setDailyMacros({});
-                setMacroAnalysis('');
-                
-                alert('Surprise meal plan generated! Click "Analyze" to see the new macro breakdown.');
-            } else {
-                console.error('Surprise Me Error: Invalid API response', result);
-                alert('Could not generate a meal plan. The AI returned an unexpected response. Please try again.');
-            }
-        } catch (error) {
-            console.error('Error generating surprise meal plan:', error);
-            alert(`An error occurred while generating the meal plan: ${error.message}`);
-        } finally {
-            setIsGeneratingPlan(false);
-        }
-    }, [currentWeek, weeklyData, weekDays, updateWeeklySummary, weeklySummaries]);
-
-    const generateShoppingList = async () => {
-        if(!weeklyData.meals || Object.keys(weeklyData.meals).length === 0) {
-            alert('Please create a meal plan first');
-            return;
-        }
-        
+     const generateShoppingList = async () => {
+        if(!weeklyData.meals) return;
         setIsGeneratingList(true);
-        
         const mealPlanText = Object.entries(weeklyData.meals).map(([day, meals]) => {
             const date = format(parseISO(day), 'EEEE');
-            const mealEntries = Object.entries(meals)
-                .filter(([mealType]) => mealType !== 'Notes')
-                .map(([mealType, meal]) => meal ? `  ${mealType}: ${meal}` : null)
-                .filter(Boolean)
-                .join('\n');
+            const mealEntries = Object.entries(meals).map(([mealType, meal]) => meal ? `  ${mealType}: ${meal}` : null).filter(Boolean).join('\n');
             return `${date}:\n${mealEntries}`;
         }).join('\n\n');
 
-        const stockText = weeklyData.foodStock || 'No items in stock';
-
-        const prompt = `Create a categorized shopping list for the meal plan below. Use markdown with headers for categories (e.g., ## Produce). EXCLUDE items already in stock. Be specific with quantities.
-
-**Meal Plan:**
-${mealPlanText}
-
-**Current Stock (Exclude These):**
-${stockText}`;
-
+        const prompt = `Based on the following meal plan, create a simple, categorized shopping list in Markdown format. Categories could be "Produce", "Dairy & Eggs", "Meat & Fish", "Pantry", "Frozen", etc. \n\nMeal Plan:\n${mealPlanText}`;
         try {
-            const chatHistory = [{ role: "user", parts: [{ text: prompt }] }];
+            let chatHistory = [{ role: "user", parts: [{ text: prompt }] }];
             const payload = { contents: chatHistory };
             const apiKey = process.env.REACT_APP_GEMINI_API_KEY || "";
             const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
@@ -1730,273 +1240,66 @@ ${stockText}`;
                 body: JSON.stringify(payload)
             });
             const result = await response.json();
-            
             if (result.candidates && result.candidates[0]?.content?.parts[0]?.text) {
-                const shoppingList = result.candidates[0].content.parts[0].text;
-                handleStateChange('shoppingList', shoppingList);
+                updateWeeklySummary(weekKey, {...weeklyData, shoppingList: result.candidates[0].content.parts[0].text});
                 setIsEditingShoppingList(false);
             } else {
-                console.error("Shopping List Error: Invalid API response", result);
-                alert("Sorry, could not generate a shopping list. The AI returned an unexpected response.");
+                 console.error("Shopping List Error", result);
+                 alert("Sorry, could not generate a shopping list.");
             }
         } catch(error) {
-            console.error("Error generating shopping list:", error);
-            alert(`An error occurred while generating the shopping list: ${error.message}`);
+              console.error("Shopping List Error", error);
+              alert("An error occurred while generating the shopping list.");
         } finally {
             setIsGeneratingList(false);
         }
     };
 
-    const analyzeMacros = async () => {
-        if(!weeklyData.meals || Object.keys(weeklyData.meals).length === 0) {
-            alert('Please create a meal plan first');
-            return;
-        }
-        
-        setIsAnalyzingMacros(true);
-        
-        const mealPlanText = Object.entries(weeklyData.meals).map(([day, meals]) => {
-            const date = format(parseISO(day), 'EEEE');
-            const mealEntries = Object.entries(meals)
-                .filter(([mealType]) => mealType !== 'Notes')
-                .map(([mealType, meal]) => meal ? `  ${mealType}: ${meal}` : null)
-                .filter(Boolean)
-                .join('\n');
-            return `${date}:\n${mealEntries}`;
-        }).join('\n\n');
-
-        const targets = weeklyData.macroTargets;
-        const prompt = `Analyze this weekly meal plan against macro targets. 
-Provide daily estimates in the format: "Mon: 1800cal, 120p, 200c, 60f".
-Provide a brief weekly summary comparing the plan to the targets.
-Provide quick, actionable suggestions for improvement.
-Use markdown with clear sections.
-
-**Daily Targets:** ${targets.calories}cal, ${targets.protein}p, ${targets.carbs}c, ${targets.fat}f
-
-**Meal Plan:**
-${mealPlanText}`;
-
-        try {
-            const chatHistory = [{ role: "user", parts: [{ text: prompt }] }];
-            const payload = { contents: chatHistory };
-            const apiKey = process.env.REACT_APP_GEMINI_API_KEY || "";
-            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
-            const response = await fetch(apiUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-            const result = await response.json();
-            
-            if (result.candidates && result.candidates[0]?.content?.parts[0]?.text) {
-                const analysis = result.candidates[0].content.parts[0].text;
-                setMacroAnalysis(analysis);
-                handleStateChange('macroAnalysis', analysis);
-                
-                const dailyMacroMatches = analysis.match(/(\w{3}):\s*(\d+)cal[^,]*,\s*(\d+)p[^,]*,\s*(\d+)c[^,]*,\s*(\d+)f/gi);
-                if (dailyMacroMatches) {
-                    const newDailyMacros = {};
-                    dailyMacroMatches.forEach(match => {
-                        const parts = match.match(/(\w{3}):\s*(\d+)cal[^,]*,\s*(\d+)p[^,]*,\s*(\d+)c[^,]*,\s*(\d+)f/i);
-                        if (parts) {
-                            const day = parts[1].toLowerCase();
-                            newDailyMacros[day] = `📊 ${parts[2]}cal, ${parts[3]}p, ${parts[4]}c, ${parts[5]}f`;
-                        }
-                    });
-                    setDailyMacros(newDailyMacros);
-                }
-            } else {
-                console.error("Macro Analysis Error: Invalid API response", result);
-                alert("Sorry, could not analyze macros. The AI returned an unexpected response.");
-            }
-        } catch(error) {
-            console.error("Error analyzing macros:", error);
-            alert(`An error occurred while analyzing macros: ${error.message}`);
-        } finally {
-            setIsAnalyzingMacros(false);
-        }
-    };
-    
-
     return (
-        <div className="relative flex w-full h-full" ref={containerRef}>
-            {/* Left Panel */}
-            <div 
-                className="h-full"
-                style={{ width: `${layoutWidth}%` }}
-            >
-                <div className="bg-white rounded-2xl shadow-sm p-6 flex flex-col h-full mr-2">
-                    <div className="flex justify-between items-center mb-4 flex-wrap">
-                        <h2 className="text-xl font-bold text-gray-800">Weekly Meal Plan</h2>
-                        <div className="flex gap-2 flex-wrap">
-                            <button onClick={copyFromPreviousWeek} className="text-xs font-semibold text-gray-600 hover:text-gray-900 px-3 py-1.5 rounded-md hover:bg-gray-100 transition-colors">
-                                📋 Copy
-                            </button>
-                            <button onClick={resetMealPlan} className="text-xs font-semibold text-red-600 hover:text-red-800 px-3 py-1.5 rounded-md hover:bg-red-50 transition-colors">
-                                🗑️ Reset
-                            </button>
-                            <button onClick={generateOptimizedMealPlan} disabled={isOptimizingPlan || isGeneratingPlan} className="text-xs font-semibold text-teal-600 hover:text-teal-800 px-3 py-1.5 rounded-md hover:bg-teal-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1">
-                                {isOptimizingPlan ? '🤖 Working...' : '🤖 Optimize'}
-                            </button>
-                             <button onClick={generateSurpriseMealPlan} disabled={isGeneratingPlan || isOptimizingPlan} className="text-xs font-semibold text-purple-600 hover:text-purple-800 px-3 py-1.5 rounded-md hover:bg-purple-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1">
-                                {isGeneratingPlan ? '✨ Working...' : '✨ Surprise Me'}
-                            </button>
-                        </div>
-                    </div>
-                    
-                    <div className="flex-1 overflow-y-auto border border-gray-100 rounded-lg">
-                        <table className="w-full border-collapse h-full table-fixed">
-                            <thead className="sticky top-0 bg-white z-10">
-                                <tr>
-                                    <th className="text-left p-2 font-semibold text-gray-600 w-16 border-b border-gray-200">Day</th>
-                                    <th className="text-left p-2 font-semibold text-gray-600 w-[30%] border-b border-gray-200">Lunch</th>
-                                    <th className="text-left p-2 font-semibold text-gray-600 w-[30%] border-b border-gray-200">Dinner</th>
-                                    <th className="text-left p-2 font-semibold text-gray-600 w-[20%] border-b border-gray-200">Snacks</th>
-                                    <th className="text-left p-2 font-semibold text-gray-600 w-[20%] border-b border-gray-200">Notes</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {weekDays.map(day => {
-                                    const dayKey = format(day, 'yyyy-MM-dd');
-                                    return (
-                                    <tr key={dayKey} className="border-t border-gray-100">
-                                        <td className="p-2 font-medium text-gray-700 text-sm align-top">{format(day, 'EEE')}</td>
-                                        {mealTypes.map(mealType => (
-                                            <td key={mealType} className="p-1 relative align-top">
-                                                <textarea
-                                                    value={weeklyData.meals?.[dayKey]?.[mealType] || ''}
-                                                    onChange={(e) => handleMealChange(day, mealType, e.target.value)}
-                                                    className="w-full p-2 border border-gray-200 bg-gray-50 rounded-lg text-xs focus:ring-1 focus:ring-teal-500 focus:border-teal-500 resize-y"
-                                                    rows="4"
-                                                    placeholder={ mealType === 'Notes' ? "Prep notes..." : `Enter ${mealType.toLowerCase()}...`}
-                                                    style={{ minHeight: '100px' }}
-                                                />
-                                            </td>
-                                        ))}
-                                    </tr>
-                                )})}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-
-            {/* Drag Handle */}
-            <div
-                className="w-4 cursor-col-resize flex items-center justify-center group"
-                style={{
-                    position: 'absolute',
-                    top: 0,
-                    bottom: 0,
-                    left: `calc(${layoutWidth}% - 8px)`, // Center the handle
-                    zIndex: 20
-                }}
-                onMouseDown={handleMouseDown}
-            >
-                <div className={`w-1 h-24 bg-gray-200 rounded-full transition-colors duration-200 ${isResizing ? 'bg-teal-500' : 'group-hover:bg-teal-400'}`}></div>
-            </div>
-
-            {/* Right Panel */}
-            <div 
-                className="h-full"
-                style={{ width: `${100 - layoutWidth}%` }}
-            >
-                <div className="space-y-6 h-full flex flex-col pl-2">
-                    <div className="bg-green-50 rounded-2xl shadow-sm p-4">
-                         <h3 className="text-lg font-bold text-green-900 mb-3">Food Stock</h3>
-                        <textarea 
-                            value={weeklyData.foodStock || ''} 
-                            onChange={(e) => handleStateChange('foodStock', e.target.value)}
-                            placeholder="List items you have on hand..."
-                            className="w-full p-3 border border-green-200 bg-white rounded-lg focus:ring-2 focus:ring-green-500 resize-y text-xs h-48"
-                        />
-                    </div>
-
-                    <div className="bg-blue-50 rounded-2xl shadow-sm p-4">
-                        <div className="flex justify-between items-center mb-3">
-                            <h3 className="text-lg font-bold text-blue-900">Daily Macro Targets</h3>
-                            <button onClick={analyzeMacros} disabled={isAnalyzingMacros} className="text-xs font-semibold text-blue-700 hover:text-blue-900 px-3 py-1.5 rounded-md hover:bg-blue-100 transition-colors disabled:opacity-50">
-                                {isAnalyzingMacros ? '...' : '📊 Analyze'}
-                            </button>
-                        </div>
-                        <div className="grid grid-cols-2 gap-3">
-                            {macroOrder.map(macro => (
-                                 <div key={macro}>
-                                    <label className="block text-xs font-medium text-blue-700 mb-1 capitalize">{macro} {macro !== 'calories' && '(g)'}</label>
-                                    <input 
-                                        type="number" 
-                                        value={weeklyData.macroTargets?.[macro] || ''}
-                                        onChange={(e) => handleMacroTargetChange(macro, e.target.value)}
-                                        className="w-full p-2 border border-blue-200 bg-white rounded-md text-sm focus:ring-1 focus:ring-blue-500"
-                                    />
-                                </div>
-                            ))}
-                        </div>
-                        
-                        {(macroAnalysis || weeklyData.macroAnalysis) && (
-                            <div className="mt-4 bg-white rounded-lg border border-blue-200">
-                                 <div className="p-2 border-b border-blue-100">
-                                    <span className="text-xs font-medium text-blue-800">Analysis Results</span>
-                                </div>
-                                <div className="prose prose-sm max-w-none text-xs p-3 overflow-y-auto h-32" style={{minHeight: '128px'}}>
-                                    <ReactMarkdown 
-                                        remarkPlugins={[remarkGfm]}
-                                        components={{
-                                            p: ({children}) => <p className="mb-2 leading-relaxed">{children}</p>,
-                                            h2: ({children}) => <h2 className="text-sm font-bold mt-3 mb-1 text-blue-800">{children}</h2>,
-                                            h3: ({children}) => <h3 className="text-sm font-semibold mt-2 mb-1 text-blue-700">{children}</h3>
-                                        }}
-                                    >
-                                        {macroAnalysis || weeklyData.macroAnalysis}
-                                    </ReactMarkdown>
-                                </div>
-                            </div>
-                        )}
-                    </div>
-
-                    <div className="bg-orange-50 rounded-2xl shadow-sm p-4 flex-grow flex flex-col">
-                         <div className="flex justify-between items-center mb-3">
-                            <h3 className="text-lg font-bold text-orange-900">Shopping List</h3>
-                            <div className="flex gap-2">
-                                <button onClick={generateShoppingList} disabled={isGeneratingList} className="text-xs font-semibold text-orange-700 hover:text-orange-900 px-3 py-1.5 rounded-md hover:bg-orange-100 transition-colors disabled:opacity-50">
-                                    {isGeneratingList ? '...' : '🛒 Generate'}
-                                </button>
-                                <button onClick={() => setIsEditingShoppingList(!isEditingShoppingList)} className="text-xs font-semibold text-orange-700 hover:text-orange-900 px-3 py-1.5 rounded-md hover:bg-orange-100 transition-colors">
-                                    {isEditingShoppingList ? 'Done' : '✏️ Edit'}
-                                </button>
-                            </div>
-                        </div>
-                        
-                        <div className="bg-white rounded-lg border border-orange-200 h-64">
-                            {isEditingShoppingList ? (
-                                <textarea 
-                                    value={weeklyData.shoppingList || ''}
-                                    onChange={(e) => handleStateChange('shoppingList', e.target.value)}
-                                    className="w-full h-full p-3 border-none rounded-lg focus:ring-0 resize-none text-sm"
-                                    placeholder="Add your shopping list items here..."
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+            <div className="xl:col-span-2 bg-white rounded-2xl shadow-sm p-6">
+                <h2 className="text-xl font-bold mb-4 text-gray-800">Meal Planner</h2>
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    {mealTypes.map(mealType => (
+                         <div key={mealType} className="space-y-2">
+                             <h3 className="font-bold text-center text-gray-700">{mealType}</h3>
+                            {weekDays.map(day => (
+                                <input
+                                    key={day.toString()}
+                                    type="text"
+                                    placeholder={format(day, 'EEE')}
+                                    value={weeklyData.meals?.[format(day, 'yyyy-MM-dd')]?.[mealType] || ''}
+                                    onChange={(e) => handleMealChange(day, mealType, e.target.value)}
+                                    className="w-full p-2 border border-gray-200 bg-gray-50 rounded-lg text-sm focus:ring-1 focus:ring-teal-500 focus:border-teal-500"
                                 />
-                            ) : (
-                                 <div className="prose prose-sm max-w-none text-xs p-3 overflow-y-auto h-full">
-                                    <ReactMarkdown 
-                                        remarkPlugins={[remarkGfm]}
-                                        components={{
-                                            p: ({children}) => <p className="mb-2 leading-relaxed">{children}</p>,
-                                            h2: ({children}) => <h2 className="text-sm font-bold mt-3 mb-1 text-orange-800">{children}</h2>,
-                                            ul: ({children}) => <ul className="list-disc list-inside ml-2 mb-2">{children}</ul>,
-                                            li: ({children}) => <li className="mb-1">{children}</li>
-                                        }}
-                                    >
-                                        {weeklyData.shoppingList || "Click 'Generate' to create a shopping list..."}
-                                    </ReactMarkdown>
-                                </div>
-                            )}
-                        </div>
+                            ))}
+                         </div>
+                    ))}
+                </div>
+            </div>
+            <div className="p-4 sm:p-6 bg-orange-50 rounded-2xl shadow-sm">
+                <div className="flex justify-between items-center mb-1">
+                    <h3 className="text-xl font-bold text-orange-900">Shopping List</h3>
+                    <div className="flex items-center space-x-2">
+                        <button onClick={generateShoppingList} disabled={isGeneratingList} className="text-xs font-semibold text-orange-700 hover:text-orange-900 disabled:text-gray-400">✨ Generate</button>
+                         <button onClick={() => setIsEditingShoppingList(!isEditingShoppingList)} className="text-xs font-semibold text-orange-700 hover:text-orange-900">{isEditingShoppingList ? 'Preview' : 'Edit'}</button>
                     </div>
                 </div>
+                 {isEditingShoppingList ? (
+                     <textarea 
+                        value={isGeneratingList ? "Generating..." : weeklyData.shoppingList} 
+                        onChange={(e) => updateWeeklySummary(weekKey, {...weeklyData, shoppingList: e.target.value})}
+                        placeholder="Your shopping list..."
+                        className="w-full p-2 border border-orange-200 bg-white/50 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 h-64"
+                    />
+                 ) : (
+                    <div className="prose prose-sm p-2 rounded-lg bg-white/50 h-64 overflow-y-auto">
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{weeklyData.shoppingList || "Nothing to show."}</ReactMarkdown>
+                    </div>
+                 )}
             </div>
         </div>
-    );
+    )
 };
 
 const AISummary = ({ timeframe, startDate, endDate }) => {
