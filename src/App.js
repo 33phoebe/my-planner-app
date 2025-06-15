@@ -1584,7 +1584,7 @@ Return a single JSON object. The keys must be the lowercase day of the week (e.g
         } finally {
             setIsOptimizingPlan(false);
         }
-    }, [currentWeek, weeklyData, weekDays, updateWeeklySummary, weeklySummaries]);
+    }, [currentWeek, weeklyData, weekDays, updateWeeklySummary, weeklySummaries, weekKey]);
 
 
     const generateSurpriseMealPlan = useCallback(async () => {
@@ -1689,7 +1689,7 @@ Return a single JSON object. The keys must be the lowercase day of the week (e.g
         } finally {
             setIsGeneratingPlan(false);
         }
-    }, [currentWeek, weeklyData, weekDays, updateWeeklySummary, weeklySummaries]);
+    }, [currentWeek, weeklyData, weekDays, updateWeeklySummary, weeklySummaries, weekKey]);
 
     const generateShoppingList = async () => {
         if(!weeklyData.meals || Object.keys(weeklyData.meals).length === 0) {
@@ -1859,9 +1859,17 @@ ${mealPlanText}`;
                             <tbody>
                                 {weekDays.map(day => {
                                     const dayKey = format(day, 'yyyy-MM-dd');
+                                    const dayName = format(day, 'EEE').toLowerCase();
                                     return (
                                     <tr key={dayKey} className="border-t border-gray-100">
-                                        <td className="p-2 font-medium text-gray-700 text-sm align-top">{format(day, 'EEE')}</td>
+                                        <td className="p-2 font-medium text-gray-700 text-sm align-top">
+                                            <div className="font-bold">{format(day, 'EEE')}</div>
+                                            {dailyMacros[dayName] && (
+                                                <div className="text-[10px] text-gray-500 mt-1 whitespace-nowrap">
+                                                    {dailyMacros[dayName]}
+                                                </div>
+                                            )}
+                                        </td>
                                         {mealTypes.map(mealType => (
                                             <td key={mealType} className="p-1 relative align-top">
                                                 <textarea
@@ -1998,6 +2006,7 @@ ${mealPlanText}`;
         </div>
     );
 };
+
 
 const AISummary = ({ timeframe, startDate, endDate }) => {
     const { tasks } = useContext(DataContext);
