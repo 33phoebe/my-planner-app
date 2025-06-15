@@ -1,5 +1,5 @@
 /* global __app_id, __initial_auth_token, __firebase_config */
-import React, { useState, useEffect, useCallback, createContext, useContext, useMemo  } from 'react';
+import React, { useState, useEffect, useCallback, createContext, useContext } from 'react';
 import { initializeApp } from "firebase/app";
 import { getAnalytics } from "firebase/analytics";
 import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "firebase/auth";
@@ -7,7 +7,7 @@ import { getFirestore, collection, doc, addDoc, getDocs, setDoc, deleteDoc, onSn
 import { DndProvider, useDrag, useDrop} from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 import ReactMarkdown from 'react-markdown';
-import { startOfWeek, endOfWeek, addDays, format, eachDayOfInterval, isSameDay, parseISO, addWeeks, subWeeks, isBefore, startOfToday, startOfMonth, endOfMonth, eachWeekOfInterval, getYear, setYear, getMonth, addMonths, subMonths, isToday, startOfYear, isWithinInterval } from 'date-fns';
+import { startOfWeek, endOfWeek, addDays, format, eachDayOfInterval, isSameDay, parseISO, addWeeks, subWeeks, isBefore, startOfToday, startOfMonth, endOfMonth, eachWeekOfInterval, getYear, setYear, getMonth, addMonths, subMonths, isToday, startOfYear } from 'date-fns';
 import remarkGfm from 'remark-gfm';
 import * as XLSX from 'xlsx';
 
@@ -632,16 +632,6 @@ const DayColumn = ({ day, tasks }) => {
 
     const regularTasks = tasks.filter(t => !t.isHabit);
     const habits = tasks.filter(t => t.isHabit);
-    
-    // NEW: Calculate daily time totals
-    const totals = useMemo(() => {
-        const totalEst = tasks.reduce((sum, task) => sum + (Number(task.estimatedTime) || 0), 0);
-        const totalActual = tasks.reduce((sum, task) => sum + (Number(task.actualTime) || 0), 0);
-        return {
-            est: (totalEst / 60).toFixed(1),
-            actual: (totalActual / 60).toFixed(1),
-        };
-    }, [tasks]);
 
     const [{ isOver }, drop] = useDrop(() => ({
         accept: ItemTypes.TASK,
@@ -659,12 +649,12 @@ const DayColumn = ({ day, tasks }) => {
     }));
     
     return (
-        <div ref={drop} className={`flex-1 p-3 bg-white rounded-xl min-h-[400px] transition-colors flex flex-col ${isOver ? 'bg-teal-100' : ''}`}>
+        <div ref={drop} className={`flex-1 p-3 bg-white rounded-xl min-h-[400px] transition-colors ${isOver ? 'bg-teal-100' : ''}`}>
             <div className="text-center mb-4">
                 <h3 className="font-semibold text-gray-500">{format(day, 'EEE')}</h3>
                 <p className={`font-bold text-2xl ${isToday(day) ? 'text-teal-600' : 'text-gray-800'}`}>{format(day, 'd')}</p>
             </div>
-            <div className="space-y-2 flex-grow">
+            <div className="space-y-2">
                  {regularTasks.map(task => <Task key={task.id} task={task} compact={false}/>)}
             </div>
 
@@ -679,19 +669,9 @@ const DayColumn = ({ day, tasks }) => {
                     </div>
                 </>
             )}
-            
-            {/* NEW: Daily time total footer */}
-            <div className="pt-2 mt-4 border-t border-dashed border-gray-200 text-center">
-                <span className="text-xs font-semibold text-gray-500" title="Estimated Hours">{totals.est}h</span>
-                <span className="text-gray-300 mx-1">/</span>
-                <span className={`text-xs font-bold ${parseFloat(totals.actual) > parseFloat(totals.est) ? 'text-red-500' : 'text-green-600'}`} title="Actual Hours">
-                    {totals.actual}h
-                </span>
-            </div>
         </div>
     );
 };
-
 
 const CalendarView = ({ currentDate }) => {
     const { tasks } = useContext(DataContext);
@@ -1604,7 +1584,7 @@ Return a single JSON object. The keys must be the lowercase day of the week (e.g
         } finally {
             setIsOptimizingPlan(false);
         }
-    }, [currentWeek, weeklySummaries, weeklyData, weekDays, updateWeeklySummary, weekKey]);
+    }, [currentWeek, weeklyData, weekDays, updateWeeklySummary, weeklySummaries, weekKey]);
 
 
     const generateSurpriseMealPlan = useCallback(async () => {
@@ -2028,8 +2008,6 @@ ${mealPlanText}`;
 };
 
 
-
-
 const AISummary = ({ timeframe, startDate, endDate }) => {
     const { tasks } = useContext(DataContext);
     const [summary, setSummary] = useState("");
@@ -2276,6 +2254,7 @@ function App() {
         if(!smartAddText) return;
         setIsParsing(true);
 
+        // Check for Excel/TSV paste
         if (smartAddText.includes('\t') && smartAddText.includes('\n')) {
             const rows = smartAddText.trim().split('\n');
             const parsedTasks = rows.map(row => {
@@ -2296,6 +2275,7 @@ function App() {
             return;
         }
 
+        // Fallback to single-line AI parsing
         const prompt = `Parse the following text to create a task. Today's date is ${format(new Date(), 'yyyy-MM-dd')}. Extract the title, a dueDate in 'yyyy-MM-dd' format, an estimatedTime in minutes (as a number), and a description. If a detail is missing, leave its value as null. Respond with a JSON object with keys: "title", "dueDate", "estimatedTime", "description".\n\nText: "${smartAddText}"`;
         try {
             let chatHistory = [{ role: "user", parts: [{ text: prompt }] }];
@@ -2343,6 +2323,9 @@ function App() {
         let filename = 'tasks.xlsx';
         
         try {
+            //const XLSX = await import('https://esm.sh/xlsx');
+            // Remove the dynamic import since XLSX is now properly imported at the top
+
             if (activeView === 'calendar') {
                 const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
                 const weekEnd = endOfWeek(currentDate, { weekStartsOn: 1 });
@@ -2388,33 +2371,9 @@ function App() {
     }
     
     const ViewHeader = () => {
-        const { tasks } = useContext(DataContext);
         const year = getYear(currentDate);
         let title = "";
         let prev, next;
-
-        const timeTotals = useMemo(() => {
-            let relevantTasks = [];
-            let interval = {};
-            
-            if (activeView === 'calendar') {
-                interval = { start: startOfWeek(currentDate, { weekStartsOn: 1 }), end: endOfWeek(currentDate, { weekStartsOn: 1 }) };
-            } else if (activeView === 'month') {
-                interval = { start: startOfMonth(currentDate), end: endOfMonth(currentDate) };
-            } else {
-                return null;
-            }
-
-            relevantTasks = tasks.filter(t => t.dueDate && isWithinInterval(parseISO(t.dueDate), interval));
-
-            const totalEst = relevantTasks.reduce((sum, task) => sum + (Number(task.estimatedTime) || 0), 0);
-            const totalActual = relevantTasks.reduce((sum, task) => sum + (Number(task.actualTime) || 0), 0);
-            return {
-                est: (totalEst / 60).toFixed(1),
-                actual: (totalActual / 60).toFixed(1),
-            };
-        // FIX: Removed unnecessary dependencies 'activeView' and 'currentDate'
-        }, [tasks]);
 
         switch(activeView){
             case 'calendar':
@@ -2440,18 +2399,7 @@ function App() {
         return (
              <div className="flex flex-wrap items-center justify-between gap-4 mb-8">
                  <div className="flex items-center space-x-4">
-                    <div>
-                        <h1 className="text-3xl font-bold text-gray-800">{title}</h1>
-                        {timeTotals && (
-                             <div className="mt-1">
-                                <span className="text-sm font-semibold text-gray-500">Est: {timeTotals.est}h</span>
-                                <span className="text-gray-300 mx-2">/</span>
-                                <span className={`text-sm font-bold ${parseFloat(timeTotals.actual) > parseFloat(timeTotals.est) ? 'text-red-500' : 'text-green-600'}`}>
-                                    Actual: {timeTotals.actual}h
-                                </span>
-                            </div>
-                        )}
-                    </div>
+                    <h1 className="text-3xl font-bold text-gray-800">{title}</h1>
                     {activeView !== 'taskList' && activeView !== 'goals' && (
                         <div className="flex items-center">
                              <button onClick={prev} className="p-2 rounded-full text-gray-500 hover:bg-gray-200"><ChevronLeftIcon /></button>
@@ -2513,8 +2461,6 @@ function App() {
         </DndProvider>
     );
 }
-
-
 
 // Update your main App return statement to include the undo
 export default function WeeklyPlannerApp() {
